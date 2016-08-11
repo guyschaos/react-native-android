@@ -58,3 +58,10 @@ Android, by default, signs your app using a keystore that is held in ~/.android.
 This means that if you create and deploy an app, restart the container then try and deploy it again, it'll fail because the app signatured don't match. You could uninstall the app then reinstall it, but it's a pain to do that every time. Instead, just map a local directory or volume to /home/dev/.android in the container.
 
 The react-bash script will map your local ~/.android to /home/dev/.android in the container. Feel free to change this to something else or use a data only container.
+
+### Fun with docker
+
+```shell
+cd to/your/workpath
+docker run --rm -it -v $(pwd):/app -v $(pwd):/home/dev/app -p 8081:8081 guyschaos/react-native-android bash
+```
