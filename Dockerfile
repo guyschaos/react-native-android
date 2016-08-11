@@ -60,6 +60,8 @@ RUN npm install -g react-native-cli
 ##
 ## Install ignite
 ##
+RUN sudo chown -R $(whoami) $(npm config get prefix)/{lib/node_modules,bin,share}
+
 RUN npm install -g react-native-ignite
 
 # Clean up when done.
