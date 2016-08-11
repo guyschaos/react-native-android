@@ -2,9 +2,9 @@
 
 # Docker image for react native experimentation
 
-FROM node:4.1.1
+FROM node:6.3.1
 
-MAINTAINER Giles Paterson <giles@vurt.uk>
+MAINTAINER Guyschaos <guyschaos@gmail.com>
 
 LABEL version="1.0.2"
 
@@ -55,7 +55,7 @@ RUN echo "y" | android update sdk \
 ##
 ## Install react native
 ##
-RUN npm install -g react-native-cli@0.1.7
+RUN npm install -g react-native-cli
 
 # Clean up when done.
 RUN apt-get clean && \
@@ -78,7 +78,7 @@ RUN adduser --disabled-password --gecos '' $USERNAME && \
 # RUN echo "no" | android create avd -n android-23-phone -c 1000M -s WVGA854 -t 1
 
 # Add Tini
-ENV TINI_VERSION v0.6.0
+ENV TINI_VERSION v0.9.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
