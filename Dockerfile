@@ -1,106 +1,99 @@
-# Pull base image.
-FROM ubuntu:14.04
+## -*- docker-image-name: "react-native" -*-
 
-# Install base software packages
-RUN apt-get update && \
-    apt-get install software-properties-common \
-    python-software-properties \
-    wget \
-    curl \
-    git \
-    unzip -y && \
-    apt-get clean
+# Docker image for react native experimentation
 
+FROM node:4.1.1
 
-# ——————————
-# Install Java.
-# ——————————
+MAINTAINER Giles Paterson <giles@vurt.uk>
 
-RUN \
-  echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
-  add-apt-repository -y ppa:webupd8team/java && \
-  apt-get update && \
-  apt-get install -y oracle-java8-installer && \
-  rm -rf /var/lib/apt/lists/* && \
-  rm -rf /var/cache/oracle-jdk8-installer
+LABEL version="1.0.2"
 
+# Setup environment variables
+ENV PATH $PATH:node_modules/.bin
 
-# Define commonly used JAVA_HOME variable
-ENV JAVA_HOME /usr/lib/jvm/java-8-oracle
+##
+## Install Java
+##
+RUN DEBIAN_FRONTEND=noninteractive apt-get update -q && \
+	apt-get install -qy --no-install-recommends sudo default-jdk
 
+##
+## Install Android SDK
+##
+# Set correct environment variables.
+ENV ANDROID_SDK_FILE android-sdk_r24.0.1-linux.tgz
+ENV ANDROID_SDK_URL http://dl.google.com/android/$ANDROID_SDK_FILE
 
-# ——————————
-# Installs i386 architecture required for running 32 bit Android tools
-# ——————————
-
+# Install 32bit support for Android SDK
 RUN dpkg --add-architecture i386 && \
-    apt-get update -y && \
-    apt-get install -y libc6:i386 libncurses5:i386 libstdc++6:i386 lib32z1 && \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get autoremove -y && \
-    apt-get clean
+    apt-get update -q && \
+    apt-get install -qy --no-install-recommends libstdc++6:i386 libgcc1:i386 zlib1g:i386 libncurses5:i386
+
+# Install kvm support for Android emulator
+#RUN apt-get install -qy --no-install-recommends qemu-kvm libvirt-bin libegl1-mesa
+
+# Install Android SDK
+ENV ANDROID_HOME /usr/local/android-sdk-linux
+RUN cd /usr/local && \
+    wget $ANDROID_SDK_URL && \
+    tar -xzf $ANDROID_SDK_FILE && \
+    export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools && \
+    chgrp -R users $ANDROID_HOME && \
+    chmod -R 0775 $ANDROID_HOME && \
+    rm $ANDROID_SDK_FILE
+
+# Install android tools and system-image.
+
+ENV PATH $PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/23.0.1
+RUN echo "y" | android update sdk \
+    --no-ui \
+    --force \
+    --all \
+    --filter platform-tools,android-23,build-tools-23.0.1,extra-android-support,extra-android-m2repository,sys-img-x86_64-android-23,extra-google-m2repository
 
 
-# ——————————
-# Installs Android SDK
-# ——————————
+##
+## Install react native
+##
+RUN npm install -g react-native-cli@0.1.7
 
-ENV ANDROID_SDK_VERSION r24.4.1
-ENV ANDROID_BUILD_TOOLS_VERSION build-tools-23.0.3,build-tools-23.0.2,build-tools-23.0.1
+# Clean up when done.
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+    npm cache clear
 
-ENV ANDROID_SDK_FILENAME android-sdk_${ANDROID_SDK_VERSION}-linux.tgz
-ENV ANDROID_SDK_URL http://dl.google.com/android/${ANDROID_SDK_FILENAME}
-ENV ANDROID_API_LEVELS android-23
-ENV ANDROID_EXTRA_COMPONENTS extra-android-m2repository,extra-google-m2repository
-ENV ANDROID_HOME /opt/android-sdk-linux
-ENV PATH ${PATH}:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools
-RUN cd /opt && \
-    wget -q ${ANDROID_SDK_URL} && \
-    tar -xzf ${ANDROID_SDK_FILENAME} && \
-    rm ${ANDROID_SDK_FILENAME} && \
-    echo y | android update sdk --no-ui -a --filter tools,platform-tools,${ANDROID_API_LEVELS},${ANDROID_BUILD_TOOLS_VERSION} && \
-    echo y | android update sdk --no-ui --all --filter "${ANDROID_EXTRA_COMPONENTS}"
+# Default react-native web server port
+EXPOSE 8081
 
+ENV USERNAME dev
 
-# ——————————
-# Installs Gradle
-# ——————————
+RUN adduser --disabled-password --gecos '' $USERNAME && \
+    echo $USERNAME:$USERNAME | chpasswd && \
+    echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    adduser $USERNAME sudo
+    #adduser $USERNAME kvm && \
+    #adduser $USERNAME libvirt
 
-# Gradle
-ENV GRADLE_VERSION 2.4
+# Create android avd image
+# RUN echo "no" | android create avd -n android-23-phone -c 1000M -s WVGA854 -t 1
 
-RUN cd /usr/lib \
- && curl -fl https://downloads.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip -o gradle-bin.zip \
- && unzip "gradle-bin.zip" \
- && ln -s "/usr/lib/gradle-${GRADLE_VERSION}/bin/gradle" /usr/bin/gradle \
- && rm "gradle-bin.zip"
+# Add Tini
+ENV TINI_VERSION v0.6.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
 
-# Set Appropriate Environmental Variables
-ENV GRADLE_HOME /usr/lib/gradle
-ENV PATH $PATH:$GRADLE_HOME/bin
+USER $USERNAME
 
+# Set workdir
+# You'll need to run this image with a volume mapped to /home/dev (i.e. -v $(pwd):/home/dev) or override this value
+WORKDIR /home/$USERNAME/app
 
-# ——————————
-# Install Node and global packages
-# ——————————
-ENV NODE_VERSION 6.3.1
-RUN cd && \
-    wget -q http://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.gz && \
-    tar -xzf node-v${NODE_VERSION}-linux-x64.tar.gz && \
-    mv node-v${NODE_VERSION}-linux-x64 /opt/node && \
-    rm node-v${NODE_VERSION}-linux-x64.tar.gz
-ENV PATH ${PATH}:/opt/node/bin
+# Tell gradle to store dependencies in a sub directory of the android project
+# this persists the dependencies between builds
+ENV GRADLE_USER_HOME /home/$USERNAME/app/android/gradle_deps
 
+ENTRYPOINT ["/tini", "--"]
 
-# ——————————
-# Install Basic React-Native packages
-# ——————————
-RUN npm install react-native-cli -g
-RUN npm install rnpm -g
-
-# ——————————
-# Install cnpm
-# ——————————
-RUN npm install -g cnpm --registry=https://registry.npm.taobao.org
-
-ENV LANG en_US.UTF-8
+# Run your program under Tini
+# CMD ["/your/program", "-and", "-its", "arguments"]
+# or docker run your-image /your/program ...
