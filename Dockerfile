@@ -57,6 +57,11 @@ RUN echo "y" | android update sdk \
 ##
 RUN npm install -g react-native-cli
 
+##
+## Install ignite
+##
+RUN npm install -g react-native-ignite
+
 # Clean up when done.
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
